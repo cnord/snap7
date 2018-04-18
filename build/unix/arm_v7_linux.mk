@@ -9,7 +9,7 @@
 ##
 TargetCPU  :=arm_v7
 OS         :=linux
-CXXFLAGS   := -O3 -g -fPIC -mword-relocations -pedantic
+CXXFLAGS   := -g -fPIC -mword-relocations -pedantic
 
 # Standard part
 

@@ -4,7 +4,7 @@
 ##
 TargetCPU  :=i386
 OS         :=linux
-CXXFLAGS   := -O3 -fPIC -pedantic
+CXXFLAGS   := -fPIC -pedantic
 
 # Standard part
 

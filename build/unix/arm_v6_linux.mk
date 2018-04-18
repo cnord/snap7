@@ -7,7 +7,7 @@
 ##
 TargetCPU  :=arm_v6
 OS         :=linux
-CXXFLAGS   := -O3 -g -fPIC -pedantic
+CXXFLAGS   := -g -fPIC -pedantic
 
 # Standard part
 
