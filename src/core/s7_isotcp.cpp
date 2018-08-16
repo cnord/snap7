@@ -24,6 +24,7 @@
 |  If not, see  http://www.gnu.org/licenses/                                   |
 |=============================================================================*/
 #include "s7_isotcp.h"
+#include "snap7log.h"
 //---------------------------------------------------------------------------
 TIsoTcpSocket::TIsoTcpSocket()
 {
@@ -67,6 +68,44 @@ int TIsoTcpSocket::CheckPDU(void *pPDU, u_char PduTypeExpected)
 int TIsoTcpSocket::SetIsoError(int Error)
 {
 	LastIsoError = Error | LastTcpError;
+	switch (Error) {
+	case errIsoConnect:
+		SNAP7LOG_WARNING("isotcp") << "connection error";
+		break;
+	case errIsoDisconnect:
+		SNAP7LOG_WARNING("isotcp") << "disconnect error";
+		break;
+	case errIsoInvalidPDU:
+		SNAP7LOG_WARNING("isotcp") << "bad format (invalid pdu)";
+		break;
+	case errIsoInvalidDataSize:
+		SNAP7LOG_WARNING("isotcp") << "bad Datasize passed to send/recv : buffer is invalid";
+		break;
+	case errIsoNullPointer:
+		SNAP7LOG_WARNING("isotcp") << "null passed as pointer";
+		break;
+	case errIsoShortPacket:
+		SNAP7LOG_WARNING("isotcp") << "a short packet received";
+		break;
+	case errIsoTooManyFragments:
+		SNAP7LOG_WARNING("isotcp") << "too many packets without EoT flag";
+		break;
+	case errIsoPduOverflow:
+		SNAP7LOG_WARNING("isotcp") << "the sum of fragments data exceded maximum packet size";
+		break;
+	case errIsoSendPacket:
+		SNAP7LOG_WARNING("isotcp") << "an error occurred during send";
+		break;
+	case errIsoRecvPacket:
+		SNAP7LOG_WARNING("isotcp") << "an error occurred during recv";
+		break;
+	case errIsoInvalidParams:
+		SNAP7LOG_WARNING("isotcp") << "Invalid TSAP params";
+		break;
+	default:
+		SNAP7LOG_WARNING("isotcp") << "iso error " << LastIsoError;
+		break;
+	}
 	return LastIsoError;
 }
 //---------------------------------------------------------------------------
@@ -179,6 +218,7 @@ void TIsoTcpSocket::FragmentSkipped(int Size)
 //---------------------------------------------------------------------------
 int TIsoTcpSocket::isoConnect()
 {
+	SNAP7LOG_FUNCTION();
 	pbyte TmpControlPDU;
     PIsoControlPDU ControlPDU;
 	u_int Length;
@@ -190,8 +230,10 @@ int TIsoTcpSocket::isoConnect()
 
 	// Checks the format
 	Result =CheckPDU(ControlPDU, pdu_type_CR);
-	if (Result!=0)
+	if (Result!=0) {
+		SNAP7LOG_ERROR("isotcp") << "check pdu failed";
 		return Result;
+	}
 
 	Result =SckConnect();
 	if (Result==noError)
@@ -241,6 +283,9 @@ int TIsoTcpSocket::isoConnect()
 
 		if (Result!=0)
 			SckDisconnect();
+	} else {
+		SNAP7LOG_ERROR("isotcp") << \
+			"socket connect failed: " << Result << " - " << strerror(Result);
 	}
 	return Result;
 }

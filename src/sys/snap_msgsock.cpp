@@ -25,6 +25,7 @@
 |=============================================================================*/
 
 #include "snap_msgsock.h"
+#include "snap7log.h"
 
 //---------------------------------------------------------------------------
 
@@ -152,7 +153,10 @@ int TMsgSocket::GetLastSocketError()
 {
 #ifdef OS_WINDOWS
     return WSAGetLastError();
-#else    
+#else
+    if (errno != 0) {
+	    SNAP7LOG_WARNING("msgsocket") << "last socket error: " << strerror(errno);
+    }
     return errno;
 #endif
 }
