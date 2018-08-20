@@ -24,6 +24,7 @@
 |  If not, see  http://www.gnu.org/licenses/                                   |
 |=============================================================================*/
 #include "s7_partner.h"
+#include "snap7log.h"
 //------------------------------------------------------------------------------
 
 static PServersManager ServersManager = NULL;
@@ -475,6 +476,8 @@ int TSnap7Partner::Start()
 //------------------------------------------------------------------------------
 int TSnap7Partner::StartTo(const char *LocAddress, const char *RemAddress, word LocTsap, word RemTsap)
 {
+    SNAP7LOG_INFO("partner") << \
+        "start: " << LocAddress << "(" << LocTsap << ") -> " << RemAddress << "(" << RemTsap << ")";
     SrcTSap=LocTsap;
     DstTSap=RemTsap;
 	strcpy(LocalAddress,LocAddress);
@@ -484,6 +487,7 @@ int TSnap7Partner::StartTo(const char *LocAddress, const char *RemAddress, word 
 //------------------------------------------------------------------------------
 int TSnap7Partner::Stop()
 {
+    SNAP7LOG_INFO("partner") << "stop";
     if (Running)
     {
         Stopping=true; // to prevent incoming connections
@@ -501,6 +505,7 @@ int TSnap7Partner::Stop()
 //------------------------------------------------------------------------------
 void TSnap7Partner::Disconnect()
 {
+    SNAP7LOG_INFO("partner") << "disconnect";
     PeerDisconnect();
     Linked=false;
 }
@@ -629,6 +634,7 @@ bool TSnap7Partner::ConnectToPeer()
 //------------------------------------------------------------------------------
 bool TSnap7Partner::PerformFunctionNegotiate()
 {
+    SNAP7LOG_FUNCTION();
     PReqFunNegotiateParams ReqParams;
     PResFunNegotiateParams ResParams;
     TS7Answer23 Answer;
@@ -643,6 +649,7 @@ bool TSnap7Partner::PerformFunctionNegotiate()
     if (ReqParams->FunNegotiate!=pduNegotiate)
     {
         LastError=errParInvalidPDU;
+        SNAP7LOG_ERROR("partner") << "perform function negotiate: invalid pdu";
         return false;
     };
     // Prepares the answer
@@ -668,10 +675,15 @@ bool TSnap7Partner::PerformFunctionNegotiate()
     PDULength=SwapWord(ResParams->PDULength);
     // Sends the answer
     Size=sizeof(TS7ResHeader23) + sizeof(TResFunNegotiateParams);
-    if (isoSendBuffer(&Answer, Size)!=0)
+    if (isoSendBuffer(&Answer, Size)!=0) {
         SetError(errParNegotiatingPDU);
+        SNAP7LOG_ERROR("partner") << "perform function negotiate: failed to send answer";
+    }
 
     Linked=LastError==0;
+    if (Linked) {
+        SNAP7LOG_INFO("partner") << "perform function negotiate: linked";
+    }
     return Linked;
 }
 //------------------------------------------------------------------------------
@@ -799,14 +811,18 @@ bool TSnap7Partner::BlockSend()
 		DataSendReq->R_ID    =SwapDWord(TxBuffer.R_ID);
 		memcpy(Data, Source ,Slice);
 
-		if (isoExchangeBuffer(NULL, TxIsoSize)!=0)
+		if (isoExchangeBuffer(NULL, TxIsoSize)!=0) {
 			SetError(errParSendingBlock);
+            SNAP7LOG_ERROR("partner") << "BlockSend: iso exchange buffer failed";
+        }
 
 		if (LastError==0)
 		{
 		   Seq_IN=ResParams->Seq;
-		   if (SwapWord(ResParams->Err)!=0)
+		   if (SwapWord(ResParams->Err)!=0) {
 			   LastError=errParSendRefused;
+                SNAP7LOG_ERROR("partner") << "BlockSend: response error";
+           }
 		}
 
 		if (First)
@@ -844,6 +860,7 @@ bool TSnap7Partner::PickData()
 	if ((PDUH_in->PDUType!=PduType_userdata) || (ReqParams->Tg!=grBSend))
 	{
 		LastError=errParInvalidPDU;
+        SNAP7LOG_ERROR("partner") << "PickData: invalid pdu";
 		return false;
 	}
 
@@ -890,8 +907,10 @@ bool TSnap7Partner::PickData()
 	ResData->DHead[3] =0x00;
 
 	AnswerLen=sizeof(TS7ReqHeader)+sizeof(TBSendParams)+sizeof(TBSendResData);
-	if (isoSendBuffer(NULL,AnswerLen)!=0)
+	if (isoSendBuffer(NULL,AnswerLen)!=0) {
+        SNAP7LOG_ERROR("partner") << "PickData: send buffer failed";
 		SetError(errParRecvingBlock);
+    }
 
 	return LastError==0;
 }
@@ -1018,9 +1037,11 @@ bool TSnap7Partner::Execute()
                     Result=ConnectionConfirm();
                 else // nothing else
                     Purge();
-        }
-        else
+        } else {
             Result=false;
+            SNAP7LOG_ERROR("partner") << \
+                "Execute: last tcp error=" << LastTcpError << ": " << strerror(LastTcpError);
+        }
     };
 
     if (LastTcpError==WSAECONNRESET)
@@ -1029,8 +1050,10 @@ bool TSnap7Partner::Execute()
         Linked=false;
     }
     else
-        if (!Result)
+        if (!Result) {
             Disconnect();
+            SNAP7LOG_WARNING("partner") << "Execute: disconnecting";
+        }
 
     // Check BRecv sequence timeout
     RTimeout= FRecvPending && (SysGetTick()-FRecvStatus.Elapsed>longword(BRecvTimeout));
